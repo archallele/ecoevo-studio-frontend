@@ -35,7 +35,7 @@ export default function MaterialMapperPage() {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
       const response = await fetch(
-        `${apiUrl}/v1/acp/agents/agents.ecoservices.material_mapper/invoke`,
+        `${apiUrl}/v1/agents/agents.ecoservices.material_mapper/invoke`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -50,7 +50,7 @@ export default function MaterialMapperPage() {
       }
 
       const data = await response.json();
-      setResult(data);
+      setResult(data.result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
