@@ -65,6 +65,7 @@ export default function MaterialMapperPage() {
   const [ecosystemServices, setEcosystemServices] = useState<string[]>([]);
   const [ecosystemServiceDetails, setEcosystemServiceDetails] = useState<Record<string, EcosystemServiceDetail>>({});
   const [selectedEcosystemService, setSelectedEcosystemService] = useState<string | null>(null);
+  const [selectedBmf, setSelectedBmf] = useState<string | null>(null);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,6 +81,7 @@ export default function MaterialMapperPage() {
     setEcosystemServices([]);
     setEcosystemServiceDetails({});
     setSelectedEcosystemService(null);
+    setSelectedBmf(null);
     setProgress({ stage: "idle", message: "Connecting..." });
 
     try {
@@ -262,6 +264,19 @@ export default function MaterialMapperPage() {
   // Handle ecosystem service click
   const handleEcosystemServiceClick = useCallback((item: { id: string; label: string }) => {
     setSelectedEcosystemService(prev => prev === item.id ? null : item.id);
+    setSelectedBmf(null); // Clear BMF selection when ES is clicked
+  }, []);
+
+  // Handle BMF click
+  const handleBmfClick = useCallback((item: { id: string; label: string }) => {
+    setSelectedBmf(prev => prev === item.id ? null : item.id);
+    setSelectedEcosystemService(null); // Clear ES selection when BMF is clicked
+  }, []);
+
+  // Handle background click to clear all selections
+  const handleBackgroundClick = useCallback(() => {
+    setSelectedEcosystemService(null);
+    setSelectedBmf(null);
   }, []);
 
   // Get selected service details
@@ -467,8 +482,11 @@ export default function MaterialMapperPage() {
                   connectionAreaWidth={180}
                   connectionColor="#cbd5e1"
                   highlightColor="#2563eb"
+                  onLeftItemClick={handleBmfClick}
                   onRightItemClick={handleEcosystemServiceClick}
+                  selectedLeftId={selectedBmf}
                   selectedRightId={selectedEcosystemService}
+                  onBackgroundClick={handleBackgroundClick}
                 />
               </div>
 

@@ -67,6 +67,8 @@ export interface BipartiteGraphProps {
   selectedLeftId?: string | null;
   /** Currently selected right item id */
   selectedRightId?: string | null;
+  /** Callback when clicking background (to clear selection) */
+  onBackgroundClick?: () => void;
 }
 
 export function BipartiteGraph({
@@ -86,6 +88,7 @@ export function BipartiteGraph({
   onRightItemClick,
   selectedLeftId,
   selectedRightId,
+  onBackgroundClick,
 }: BipartiteGraphProps) {
   const [hoveredLeftId, setHoveredLeftId] = useState<string | null>(null);
   const [hoveredRightId, setHoveredRightId] = useState<string | null>(null);
@@ -265,7 +268,8 @@ export function BipartiteGraph({
         <svg
           width={connectionAreaWidth}
           height={svgHeight}
-          className="flex-shrink-0"
+          className="flex-shrink-0 cursor-pointer"
+          onClick={onBackgroundClick}
         >
           {connections.map((conn) => {
             const y1 = leftPositions.get(conn.sourceId);

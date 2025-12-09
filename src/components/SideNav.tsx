@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
-import { Home, Wrench, Folder } from "lucide-react";
+import { Home, Network, Folder } from "lucide-react";
 
 const navItems = [
   { href: "/dashboard", icon: Home, label: "Home" },
-  { href: "/dashboard/tools", icon: Wrench, label: "Tools" },
+  { href: "/dashboard/tools", icon: Network, label: "Tools" },
   { href: "/dashboard/projects", icon: Folder, label: "Projects" },
 ];
 

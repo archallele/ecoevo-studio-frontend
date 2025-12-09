@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Wrench } from "lucide-react";
+import { Network } from "lucide-react";
 
 const tools = [
   {
@@ -36,7 +36,7 @@ export default function DashboardPage() {
             >
               <div className="flex items-start gap-4">
                 <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400 group-hover:bg-gray-200 group-hover:text-gray-500 transition-colors">
-                  <Wrench size={20} strokeWidth={1.5} />
+                  <Network size={20} strokeWidth={1.5} />
                 </div>
                 <div className="flex-1">
                   <h3 className="font-mono text-gray-800 mb-1">{tool.name}</h3>
