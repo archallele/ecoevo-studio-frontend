@@ -18,12 +18,27 @@ interface EcosystemConnection {
   relationship_type: string;
 }
 
+interface SupplementaryConnection {
+  bmf_name: string;
+  ecosystem_service: string;
+  text: string;
+  direction?: string;
+}
+
+interface EcosystemServiceDetail {
+  name: string;
+  description: string;
+  category: string;
+  supplementary_connections: SupplementaryConnection[];
+}
+
 interface MapperResult {
   extracted_materials: string[];
   matched_bmfs: MatchedBMF[];
   unmatched_materials: string[];
   ecosystem_connections: EcosystemConnection[];
   ecosystem_services: string[];
+  ecosystem_service_details: Record<string, EcosystemServiceDetail>;
   processing_time_ms: number;
   cost_usd: number;
 }
@@ -48,6 +63,8 @@ export default function MaterialMapperPage() {
   const [matchedBmfs, setMatchedBmfs] = useState<MatchedBMF[]>([]);
   const [ecosystemConnections, setEcosystemConnections] = useState<EcosystemConnection[]>([]);
   const [ecosystemServices, setEcosystemServices] = useState<string[]>([]);
+  const [ecosystemServiceDetails, setEcosystemServiceDetails] = useState<Record<string, EcosystemServiceDetail>>({});
+  const [selectedEcosystemService, setSelectedEcosystemService] = useState<string | null>(null);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,6 +78,8 @@ export default function MaterialMapperPage() {
     setMatchedBmfs([]);
     setEcosystemConnections([]);
     setEcosystemServices([]);
+    setEcosystemServiceDetails({});
+    setSelectedEcosystemService(null);
     setProgress({ stage: "idle", message: "Connecting..." });
 
     try {
@@ -185,8 +204,10 @@ export default function MaterialMapperPage() {
         // Set ecosystem data
         const connections = event.ecosystem_connections as EcosystemConnection[] || [];
         const services = event.ecosystem_services as string[] || [];
+        const serviceDetails = event.ecosystem_service_details as Record<string, EcosystemServiceDetail> || {};
         setEcosystemConnections(connections);
         setEcosystemServices(services);
+        setEcosystemServiceDetails(serviceDetails);
         setProgress({
           stage: "stage3",
           message: message || `Found ${services.length} ecosystem services`,
@@ -210,9 +231,11 @@ export default function MaterialMapperPage() {
           unmatched_materials: event.unmatched_materials as string[] || [],
           ecosystem_connections: event.ecosystem_connections as EcosystemConnection[] || [],
           ecosystem_services: event.ecosystem_services as string[] || [],
+          ecosystem_service_details: event.ecosystem_service_details as Record<string, EcosystemServiceDetail> || {},
           processing_time_ms: event.processing_time_ms as number || 0,
           cost_usd: event.cost_usd as number || 0,
         });
+        setEcosystemServiceDetails(event.ecosystem_service_details as Record<string, EcosystemServiceDetail> || {});
         setProgress({ stage: "complete", message: "Analysis complete" });
         break;
 
@@ -234,6 +257,17 @@ export default function MaterialMapperPage() {
   const showMatchedBmfs = result?.matched_bmfs || matchedBmfs;
   const showEcosystemConnections = result?.ecosystem_connections || ecosystemConnections;
   const showEcosystemServices = result?.ecosystem_services || ecosystemServices;
+  const showEcosystemServiceDetails = result?.ecosystem_service_details || ecosystemServiceDetails;
+
+  // Handle ecosystem service click
+  const handleEcosystemServiceClick = useCallback((item: { id: string; label: string }) => {
+    setSelectedEcosystemService(prev => prev === item.id ? null : item.id);
+  }, []);
+
+  // Get selected service details
+  const selectedServiceDetail = selectedEcosystemService
+    ? showEcosystemServiceDetails[selectedEcosystemService]
+    : null;
 
   // Prepare BipartiteGraph data - only show BMFs with outflow that have connections
   const bipartiteData = useMemo(() => {
@@ -259,10 +293,17 @@ export default function MaterialMapperPage() {
       .sort()
       .map(name => ({ id: name, label: name }));
 
-    // Connections: Only for BMFs in our filtered list
+    // Connections: Only for BMFs in our filtered list, deduplicated
     const validBmfNames = new Set(leftItems.map(i => i.id));
+    const seenConnections = new Set<string>();
     const connections: BipartiteConnection[] = showEcosystemConnections
       .filter(c => validBmfNames.has(c.bmf_name))
+      .filter(c => {
+        const key = `${c.bmf_name}-${c.ecosystem_service}`;
+        if (seenConnections.has(key)) return false;
+        seenConnections.add(key);
+        return true;
+      })
       .map(c => ({
         sourceId: c.bmf_name,
         targetId: c.ecosystem_service,
@@ -426,8 +467,60 @@ export default function MaterialMapperPage() {
                   connectionAreaWidth={180}
                   connectionColor="#cbd5e1"
                   highlightColor="#2563eb"
+                  onRightItemClick={handleEcosystemServiceClick}
+                  selectedRightId={selectedEcosystemService}
                 />
               </div>
+
+              {/* Ecosystem Service Detail Panel */}
+              {selectedServiceDetail && (
+                <div className="mt-4 p-4 border border-blue-200 rounded-lg bg-blue-50/50 animate-fadeIn">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <h3 className="font-mono text-gray-800 font-medium">
+                        {selectedServiceDetail.name}
+                      </h3>
+                      {selectedServiceDetail.category && (
+                        <span className="text-xs font-mono text-blue-600 uppercase tracking-wider">
+                          {selectedServiceDetail.category}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => setSelectedEcosystemService(null)}
+                      className="text-gray-400 hover:text-gray-600 text-lg leading-none"
+                    >
+                      ×
+                    </button>
+                  </div>
+
+                  {selectedServiceDetail.description && (
+                    <p className="text-sm font-mono text-gray-600 mb-4">
+                      {selectedServiceDetail.description}
+                    </p>
+                  )}
+
+                  {selectedServiceDetail.supplementary_connections.length > 0 && (
+                    <div className="border-t border-blue-200 pt-3">
+                      <h4 className="text-xs font-mono text-gray-400 uppercase tracking-wider mb-2">
+                        Material Connections
+                      </h4>
+                      <div className="space-y-1">
+                        {selectedServiceDetail.supplementary_connections.map((conn, i) => (
+                          <div
+                            key={i}
+                            className="flex items-center gap-2 text-sm font-mono text-gray-600"
+                          >
+                            <span className="text-gray-400">{conn.bmf_name}</span>
+                            <span className="text-gray-300">→</span>
+                            <span className="text-gray-500">{conn.text}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </section>
           )}
 

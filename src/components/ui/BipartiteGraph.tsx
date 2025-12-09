@@ -59,6 +59,14 @@ export interface BipartiteGraphProps {
   dimmedOpacity?: number;
   /** Custom class for the container */
   className?: string;
+  /** Callback when a left item is clicked */
+  onLeftItemClick?: (item: BipartiteItem) => void;
+  /** Callback when a right item is clicked */
+  onRightItemClick?: (item: BipartiteItem) => void;
+  /** Currently selected left item id */
+  selectedLeftId?: string | null;
+  /** Currently selected right item id */
+  selectedRightId?: string | null;
 }
 
 export function BipartiteGraph({
@@ -74,6 +82,10 @@ export function BipartiteGraph({
   highlightColor = "#3b82f6", // blue-500
   dimmedOpacity = 0.15,
   className = "",
+  onLeftItemClick,
+  onRightItemClick,
+  selectedLeftId,
+  selectedRightId,
 }: BipartiteGraphProps) {
   const [hoveredLeftId, setHoveredLeftId] = useState<string | null>(null);
   const [hoveredRightId, setHoveredRightId] = useState<string | null>(null);
@@ -121,20 +133,24 @@ export function BipartiteGraph({
   // Determine which items/connections are highlighted
   const getHighlightState = useCallback(
     (sourceId: string, targetId: string) => {
-      const isHovering = hoveredLeftId !== null || hoveredRightId !== null;
-      if (!isHovering) return "normal";
+      // Check selection first (takes priority)
+      const activeLeftId = hoveredLeftId ?? selectedLeftId;
+      const activeRightId = hoveredRightId ?? selectedRightId;
 
-      if (hoveredLeftId) {
-        const targets = connectionsBySource.get(hoveredLeftId);
-        if (sourceId === hoveredLeftId && targets?.has(targetId)) {
+      const isActive = activeLeftId !== null || activeRightId !== null;
+      if (!isActive) return "normal";
+
+      if (activeLeftId) {
+        const targets = connectionsBySource.get(activeLeftId);
+        if (sourceId === activeLeftId && targets?.has(targetId)) {
           return "highlighted";
         }
         return "dimmed";
       }
 
-      if (hoveredRightId) {
-        const sources = connectionsByTarget.get(hoveredRightId);
-        if (targetId === hoveredRightId && sources?.has(sourceId)) {
+      if (activeRightId) {
+        const sources = connectionsByTarget.get(activeRightId);
+        if (targetId === activeRightId && sources?.has(sourceId)) {
           return "highlighted";
         }
         return "dimmed";
@@ -142,33 +158,37 @@ export function BipartiteGraph({
 
       return "normal";
     },
-    [hoveredLeftId, hoveredRightId, connectionsBySource, connectionsByTarget]
+    [hoveredLeftId, hoveredRightId, selectedLeftId, selectedRightId, connectionsBySource, connectionsByTarget]
   );
 
   const isLeftItemHighlighted = useCallback(
     (itemId: string) => {
-      if (!hoveredLeftId && !hoveredRightId) return false;
-      if (hoveredLeftId === itemId) return true;
-      if (hoveredRightId) {
-        const sources = connectionsByTarget.get(hoveredRightId);
+      const activeLeftId = hoveredLeftId ?? selectedLeftId;
+      const activeRightId = hoveredRightId ?? selectedRightId;
+      if (!activeLeftId && !activeRightId) return false;
+      if (activeLeftId === itemId) return true;
+      if (activeRightId) {
+        const sources = connectionsByTarget.get(activeRightId);
         return sources?.has(itemId) ?? false;
       }
       return false;
     },
-    [hoveredLeftId, hoveredRightId, connectionsByTarget]
+    [hoveredLeftId, hoveredRightId, selectedLeftId, selectedRightId, connectionsByTarget]
   );
 
   const isRightItemHighlighted = useCallback(
     (itemId: string) => {
-      if (!hoveredLeftId && !hoveredRightId) return false;
-      if (hoveredRightId === itemId) return true;
-      if (hoveredLeftId) {
-        const targets = connectionsBySource.get(hoveredLeftId);
+      const activeLeftId = hoveredLeftId ?? selectedLeftId;
+      const activeRightId = hoveredRightId ?? selectedRightId;
+      if (!activeLeftId && !activeRightId) return false;
+      if (activeRightId === itemId) return true;
+      if (activeLeftId) {
+        const targets = connectionsBySource.get(activeLeftId);
         return targets?.has(itemId) ?? false;
       }
       return false;
     },
-    [hoveredLeftId, hoveredRightId, connectionsBySource]
+    [hoveredLeftId, hoveredRightId, selectedLeftId, selectedRightId, connectionsBySource]
   );
 
   // Generate cubic bezier path
@@ -186,7 +206,7 @@ export function BipartiteGraph({
   const svgHeight = Math.max(leftItems.length, rightItems.length) * rowHeight;
   const totalWidth = columnWidth * 2 + connectionAreaWidth;
 
-  const isHovering = hoveredLeftId !== null || hoveredRightId !== null;
+  const isActive = hoveredLeftId !== null || hoveredRightId !== null || selectedLeftId !== null || selectedRightId !== null;
 
   return (
     <div className={`font-mono ${className}`}>
@@ -213,7 +233,8 @@ export function BipartiteGraph({
         <div style={{ width: columnWidth }}>
           {leftItems.map((item) => {
             const highlighted = isLeftItemHighlighted(item.id);
-            const dimmed = isHovering && !highlighted;
+            const dimmed = isActive && !highlighted;
+            const selected = selectedLeftId === item.id;
             return (
               <div
                 key={item.id}
@@ -222,10 +243,12 @@ export function BipartiteGraph({
                   transition-all duration-150
                   ${highlighted ? "text-blue-600 font-medium" : "text-gray-700"}
                   ${dimmed ? "opacity-30" : "opacity-100"}
+                  ${selected ? "bg-blue-50 rounded-l" : ""}
                 `}
                 style={{ height: rowHeight }}
                 onMouseEnter={() => setHoveredLeftId(item.id)}
                 onMouseLeave={() => setHoveredLeftId(null)}
+                onClick={() => onLeftItemClick?.(item)}
               >
                 <span className="truncate" title={item.label}>
                   {item.label}
@@ -274,7 +297,8 @@ export function BipartiteGraph({
         <div style={{ width: columnWidth }}>
           {rightItems.map((item) => {
             const highlighted = isRightItemHighlighted(item.id);
-            const dimmed = isHovering && !highlighted;
+            const dimmed = isActive && !highlighted;
+            const selected = selectedRightId === item.id;
             return (
               <div
                 key={item.id}
@@ -283,10 +307,12 @@ export function BipartiteGraph({
                   transition-all duration-150
                   ${highlighted ? "text-blue-600 font-medium" : "text-gray-700"}
                   ${dimmed ? "opacity-30" : "opacity-100"}
+                  ${selected ? "bg-blue-50 rounded-r" : ""}
                 `}
                 style={{ height: rowHeight }}
                 onMouseEnter={() => setHoveredRightId(item.id)}
                 onMouseLeave={() => setHoveredRightId(null)}
+                onClick={() => onRightItemClick?.(item)}
               >
                 <span className="truncate" title={item.label}>
                   {item.label}
