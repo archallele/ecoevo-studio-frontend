@@ -259,12 +259,6 @@ export default function MaterialMapperPage() {
     }
   }, []);
 
-  const confidenceColor = {
-    high: "bg-green-100 text-green-700",
-    medium: "bg-amber-100 text-amber-700",
-    low: "bg-gray-100 text-gray-600",
-  };
-
   // Show either streaming state or final result
   const showExtractedMaterials = result?.extracted_materials || extractedMaterials;
   const showMatchedBmfs = result?.matched_bmfs || matchedBmfs;
@@ -563,18 +557,6 @@ export default function MaterialMapperPage() {
                   >
                     <div className="flex items-start justify-between mb-2">
                       <h3 className="font-mono text-gray-800">{bmf.bmf_name}</h3>
-                      <div className="flex gap-2">
-                        {bmf.flow_type && bmf.flow_type !== "both" && (
-                          <span className="text-xs font-mono text-gray-400 px-2 py-0.5 rounded bg-gray-50">
-                            {bmf.flow_type}
-                          </span>
-                        )}
-                        <span
-                          className={`text-xs font-mono px-2 py-0.5 rounded ${confidenceColor[bmf.confidence]}`}
-                        >
-                          {bmf.confidence}
-                        </span>
-                      </div>
                     </div>
                     <p className="text-sm font-mono text-gray-500 mb-2">
                       {bmf.reason}
