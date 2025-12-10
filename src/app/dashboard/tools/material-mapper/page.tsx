@@ -295,22 +295,15 @@ export default function MaterialMapperPage() {
     ? showEcosystemServiceDetails[selectedEcosystemService]
     : null;
 
-  // Prepare BipartiteGraph data - only show BMFs with outflow that have connections
+  // Prepare BipartiteGraph data - show all BMFs that have ecosystem connections
   const bipartiteData = useMemo(() => {
     if (showEcosystemConnections.length === 0) return null;
 
-    // Get unique BMFs that have ecosystem connections
+    // Get unique BMFs that have ecosystem connections (from Neo4j)
     const bmfNames = [...new Set(showEcosystemConnections.map(c => c.bmf_name))];
 
-    // Filter to only BMFs that can have outflows
-    const outflowBmfs = showMatchedBmfs.filter(
-      bmf => bmf.flow_type === "outflow" || bmf.flow_type === "both"
-    );
-    const outflowBmfNames = new Set(outflowBmfs.map(b => b.bmf_name));
-
-    // Left items: BMFs with connections (filtered to those with outflow capability)
+    // Left items: All BMFs that have ecosystem connections
     const leftItems: BipartiteItem[] = bmfNames
-      .filter(name => outflowBmfNames.has(name))
       .sort()
       .map(name => ({ id: name, label: name }));
 
@@ -336,7 +329,7 @@ export default function MaterialMapperPage() {
       }));
 
     return { leftItems, rightItems, connections };
-  }, [showMatchedBmfs, showEcosystemConnections, showEcosystemServices]);
+  }, [showEcosystemConnections, showEcosystemServices]);
 
   return (
     <div className="p-8 max-w-5xl">
