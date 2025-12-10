@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
+import { useSession } from "@clerk/nextjs";
 import { ArrowRight, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { BipartiteGraph, BipartiteItem, BipartiteConnection } from "@/components/ui/BipartiteGraph";
 
@@ -52,6 +53,7 @@ interface ProgressState {
 }
 
 export default function MaterialMapperPage() {
+  const { session } = useSession();
   const [strategy, setStrategy] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<MapperResult | null>(null);
@@ -87,12 +89,21 @@ export default function MaterialMapperPage() {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
 
+      // Get the session token for cross-origin requests
+      const token = await session?.getToken();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
       // Use the streaming endpoint
       const response = await fetch(
         `${apiUrl}/v1/agents/agents.ecoservices.material_mapper/invoke/stream`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({
             inputs: { strategy_description: strategy },
           }),
