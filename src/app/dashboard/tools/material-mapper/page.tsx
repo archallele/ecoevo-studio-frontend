@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { useSession } from "@clerk/nextjs";
-import { ArrowRight, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { ArrowRight, Loader2, CheckCircle2, AlertCircle, X } from "lucide-react";
 import { BipartiteGraph, BipartiteItem, BipartiteConnection } from "@/components/ui/BipartiteGraph";
 
 interface MatchedBMF {
@@ -68,6 +68,21 @@ export default function MaterialMapperPage() {
   const [ecosystemServiceDetails, setEcosystemServiceDetails] = useState<Record<string, EcosystemServiceDetail>>({});
   const [selectedEcosystemService, setSelectedEcosystemService] = useState<string | null>(null);
   const [selectedBmf, setSelectedBmf] = useState<string | null>(null);
+
+  // Ref for the visualization container to detect outside clicks
+  const vizContainerRef = useRef<HTMLDivElement>(null);
+
+  // Close modal and clear selection when clicking outside visualization
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (vizContainerRef.current && !vizContainerRef.current.contains(event.target as Node)) {
+        setSelectedEcosystemService(null);
+        setSelectedBmf(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -289,6 +304,25 @@ export default function MaterialMapperPage() {
     ? showEcosystemServiceDetails[selectedEcosystemService]
     : null;
 
+  // Get selected BMF details (with connected materials)
+  const selectedBmfDetail = useMemo(() => {
+    if (!selectedBmf) return null;
+    const bmf = showMatchedBmfs.find(b => b.bmf_name === selectedBmf);
+    if (!bmf) return null;
+
+    // Get the ecosystem services this BMF is connected to
+    const connectedServices = showEcosystemConnections
+      .filter(c => c.bmf_name === selectedBmf)
+      .map(c => c.ecosystem_service);
+
+    return {
+      name: bmf.bmf_name,
+      reason: bmf.reason,
+      matched_materials: bmf.matched_materials,
+      connected_services: [...new Set(connectedServices)],
+    };
+  }, [selectedBmf, showMatchedBmfs, showEcosystemConnections]);
+
   // Prepare BipartiteGraph data - show all BMFs that have ecosystem connections
   const bipartiteData = useMemo(() => {
     if (showEcosystemConnections.length === 0) return null;
@@ -468,7 +502,10 @@ export default function MaterialMapperPage() {
                   <span className="ml-2 text-blue-600 normal-case animate-pulse">Loading...</span>
                 )}
               </h2>
-              <div className="p-4 border border-gray-200 rounded-lg bg-gray-50/50 overflow-x-auto">
+              <div
+                ref={vizContainerRef}
+                className="p-4 border border-gray-200 rounded-lg bg-gray-50/50 overflow-x-auto relative"
+              >
                 <BipartiteGraph
                   leftItems={bipartiteData.leftItems}
                   rightItems={bipartiteData.rightItems}
@@ -487,29 +524,41 @@ export default function MaterialMapperPage() {
                   onBackgroundClick={handleBackgroundClick}
                 />
               </div>
+            </section>
+          )}
 
-              {/* Ecosystem Service Detail Panel */}
-              {selectedServiceDetail && (
-                <div className="mt-4 p-4 border border-blue-200 rounded-lg bg-blue-50/50 animate-fadeIn">
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h3 className="font-mono text-gray-800 font-medium">
-                        {selectedServiceDetail.name}
-                      </h3>
-                      {selectedServiceDetail.category && (
-                        <span className="text-xs font-mono text-blue-600 uppercase tracking-wider">
-                          {selectedServiceDetail.category}
-                        </span>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => setSelectedEcosystemService(null)}
-                      className="text-gray-400 hover:text-gray-600 text-lg leading-none"
-                    >
-                      ×
-                    </button>
+          {/* Modal Overlay for Ecosystem Service Details */}
+          {selectedServiceDetail && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
+              onClick={() => setSelectedEcosystemService(null)}
+            >
+              <div
+                className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[80vh] flex flex-col animate-fadeIn"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className="flex items-start justify-between p-4 border-b border-gray-200">
+                  <div>
+                    <h3 className="font-mono text-gray-800 font-medium text-lg">
+                      {selectedServiceDetail.name}
+                    </h3>
+                    {selectedServiceDetail.category && (
+                      <span className="text-xs font-mono text-blue-600 uppercase tracking-wider">
+                        {selectedServiceDetail.category}
+                      </span>
+                    )}
                   </div>
+                  <button
+                    onClick={() => setSelectedEcosystemService(null)}
+                    className="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100 transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
 
+                {/* Scrollable Content */}
+                <div className="p-4 overflow-y-auto flex-1">
                   {selectedServiceDetail.description && (
                     <p className="text-sm font-mono text-gray-600 mb-4">
                       {selectedServiceDetail.description}
@@ -517,7 +566,7 @@ export default function MaterialMapperPage() {
                   )}
 
                   {selectedServiceDetail.supplementary_connections.length > 0 && (
-                    <div className="border-t border-blue-200 pt-3">
+                    <div className="border-t border-gray-200 pt-3">
                       <h4 className="text-xs font-mono text-gray-400 uppercase tracking-wider mb-2">
                         Material Connections
                       </h4>
@@ -527,7 +576,7 @@ export default function MaterialMapperPage() {
                             key={i}
                             className="flex items-center gap-2 text-sm font-mono text-gray-600"
                           >
-                            <span className="text-gray-400">{conn.bmf_name}</span>
+                            <span className="text-gray-500">{conn.bmf_name}</span>
                             <span className="text-gray-300">→</span>
                             <span className="text-gray-500">{conn.text}</span>
                           </div>
@@ -536,8 +585,84 @@ export default function MaterialMapperPage() {
                     </div>
                   )}
                 </div>
-              )}
-            </section>
+              </div>
+            </div>
+          )}
+
+          {/* Modal Overlay for BMF Details */}
+          {selectedBmfDetail && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
+              onClick={() => setSelectedBmf(null)}
+            >
+              <div
+                className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[80vh] flex flex-col animate-fadeIn"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className="flex items-start justify-between p-4 border-b border-gray-200">
+                  <div>
+                    <h3 className="font-mono text-gray-800 font-medium text-lg">
+                      {selectedBmfDetail.name}
+                    </h3>
+                    <span className="text-xs font-mono text-green-600 uppercase tracking-wider">
+                      Building Metabolism Flow
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setSelectedBmf(null)}
+                    className="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100 transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+
+                {/* Scrollable Content */}
+                <div className="p-4 overflow-y-auto flex-1">
+                  {selectedBmfDetail.reason && (
+                    <p className="text-sm font-mono text-gray-600 mb-4">
+                      {selectedBmfDetail.reason}
+                    </p>
+                  )}
+
+                  {selectedBmfDetail.matched_materials.length > 0 && (
+                    <div className="mb-4">
+                      <h4 className="text-xs font-mono text-gray-400 uppercase tracking-wider mb-2">
+                        Extracted Materials
+                      </h4>
+                      <div className="flex flex-wrap gap-1">
+                        {selectedBmfDetail.matched_materials.map((mat, i) => (
+                          <span
+                            key={i}
+                            className="text-xs font-mono text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded"
+                          >
+                            {mat}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedBmfDetail.connected_services.length > 0 && (
+                    <div className="border-t border-gray-200 pt-3">
+                      <h4 className="text-xs font-mono text-gray-400 uppercase tracking-wider mb-2">
+                        Connected Ecosystem Services
+                      </h4>
+                      <div className="space-y-1">
+                        {selectedBmfDetail.connected_services.map((service, i) => (
+                          <div
+                            key={i}
+                            className="text-sm font-mono text-blue-600"
+                          >
+                            {service}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           )}
 
           {/* Matched BMFs - Show incrementally as chunks complete */}
