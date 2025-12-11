@@ -717,6 +717,37 @@ export default function MaterialMapperPage() {
             </div>
           )}
 
+          {/* Building Roles - Show when available */}
+          {showRoleAnalyses.length > 0 && (
+            <section>
+              <h2 className="text-sm font-mono text-gray-400 uppercase tracking-wider mb-4">
+                Building Roles ({showRoleAnalyses.length})
+                {isLoading && progress.stage === "stage4" && (
+                  <span className="ml-2 text-blue-600 normal-case animate-pulse">Analyzing...</span>
+                )}
+              </h2>
+              <div className="grid gap-3">
+                {showRoleAnalyses.map((role, i) => (
+                  <div
+                    key={i}
+                    className="p-4 border border-gray-200 rounded-lg hover:border-purple-300 cursor-pointer transition-colors"
+                    onClick={() => setSelectedRole(role)}
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <h3 className="font-mono text-gray-800 font-medium">{role.role_name}</h3>
+                      <span className="text-xs font-mono text-purple-600 bg-purple-50 px-2 py-0.5 rounded">
+                        {role.materials_touched.length} materials
+                      </span>
+                    </div>
+                    <p className="text-sm font-mono text-gray-500 line-clamp-2">
+                      {role.description}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
           {/* Matched BMFs - Show incrementally as chunks complete */}
           {showMatchedBmfs.length > 0 && (
             <section>
@@ -768,37 +799,6 @@ export default function MaterialMapperPage() {
                   >
                     {mat}
                   </span>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {/* Building Roles - Show when available */}
-          {showRoleAnalyses.length > 0 && (
-            <section>
-              <h2 className="text-sm font-mono text-gray-400 uppercase tracking-wider mb-4">
-                Building Roles ({showRoleAnalyses.length})
-                {isLoading && progress.stage === "stage4" && (
-                  <span className="ml-2 text-blue-600 normal-case animate-pulse">Analyzing...</span>
-                )}
-              </h2>
-              <div className="grid gap-3">
-                {showRoleAnalyses.map((role, i) => (
-                  <div
-                    key={i}
-                    className="p-4 border border-gray-200 rounded-lg hover:border-purple-300 cursor-pointer transition-colors"
-                    onClick={() => setSelectedRole(role)}
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <h3 className="font-mono text-gray-800 font-medium">{role.role_name}</h3>
-                      <span className="text-xs font-mono text-purple-600 bg-purple-50 px-2 py-0.5 rounded">
-                        {role.materials_touched.length} materials
-                      </span>
-                    </div>
-                    <p className="text-sm font-mono text-gray-500 line-clamp-2">
-                      {role.description}
-                    </p>
-                  </div>
                 ))}
               </div>
             </section>
