@@ -33,6 +33,13 @@ interface EcosystemServiceDetail {
   supplementary_connections: SupplementaryConnection[];
 }
 
+interface RoleAnalysis {
+  role_name: string;
+  role_id: string;
+  materials_touched: string[];
+  description: string;
+}
+
 interface MapperResult {
   extracted_materials: string[];
   matched_bmfs: MatchedBMF[];
@@ -40,12 +47,13 @@ interface MapperResult {
   ecosystem_connections: EcosystemConnection[];
   ecosystem_services: string[];
   ecosystem_service_details: Record<string, EcosystemServiceDetail>;
+  role_analyses: RoleAnalysis[];
   processing_time_ms: number;
   cost_usd: number;
 }
 
 interface ProgressState {
-  stage: "idle" | "stage1" | "stage2" | "stage3" | "complete" | "error";
+  stage: "idle" | "stage1" | "stage2" | "stage3" | "stage4" | "complete" | "error";
   message: string;
   currentChunk?: number;
   totalChunks?: number;
@@ -66,8 +74,10 @@ export default function MaterialMapperPage() {
   const [ecosystemConnections, setEcosystemConnections] = useState<EcosystemConnection[]>([]);
   const [ecosystemServices, setEcosystemServices] = useState<string[]>([]);
   const [ecosystemServiceDetails, setEcosystemServiceDetails] = useState<Record<string, EcosystemServiceDetail>>({});
+  const [roleAnalyses, setRoleAnalyses] = useState<RoleAnalysis[]>([]);
   const [selectedEcosystemService, setSelectedEcosystemService] = useState<string | null>(null);
   const [selectedBmf, setSelectedBmf] = useState<string | null>(null);
+  const [selectedRole, setSelectedRole] = useState<RoleAnalysis | null>(null);
 
   // Ref for the visualization container to detect outside clicks
   const vizContainerRef = useRef<HTMLDivElement>(null);
@@ -97,8 +107,10 @@ export default function MaterialMapperPage() {
     setEcosystemConnections([]);
     setEcosystemServices([]);
     setEcosystemServiceDetails({});
+    setRoleAnalyses([]);
     setSelectedEcosystemService(null);
     setSelectedBmf(null);
+    setSelectedRole(null);
     setProgress({ stage: "idle", message: "Connecting..." });
 
     try {
@@ -243,6 +255,40 @@ export default function MaterialMapperPage() {
         });
         break;
 
+      case "stage4_start":
+        setProgress({
+          stage: "stage4",
+          message: message || "Analyzing building roles...",
+          elapsedMs
+        });
+        break;
+
+      case "stage4_tier1_complete":
+        setProgress({
+          stage: "stage4",
+          message: message || "Filtered roles, analyzing in detail...",
+          elapsedMs
+        });
+        break;
+
+      case "stage4_batch_complete":
+        setProgress({
+          stage: "stage4",
+          message: message || "Processing role batches...",
+          elapsedMs
+        });
+        break;
+
+      case "stage4_complete":
+        const roles = event.role_analyses as RoleAnalysis[] || [];
+        setRoleAnalyses(roles);
+        setProgress({
+          stage: "stage4",
+          message: message || `Analyzed ${roles.length} building roles`,
+          elapsedMs
+        });
+        break;
+
       case "complete":
         setProgress({
           stage: "complete",
@@ -260,10 +306,12 @@ export default function MaterialMapperPage() {
           ecosystem_connections: event.ecosystem_connections as EcosystemConnection[] || [],
           ecosystem_services: event.ecosystem_services as string[] || [],
           ecosystem_service_details: event.ecosystem_service_details as Record<string, EcosystemServiceDetail> || {},
+          role_analyses: event.role_analyses as RoleAnalysis[] || [],
           processing_time_ms: event.processing_time_ms as number || 0,
           cost_usd: event.cost_usd as number || 0,
         });
         setEcosystemServiceDetails(event.ecosystem_service_details as Record<string, EcosystemServiceDetail> || {});
+        setRoleAnalyses(event.role_analyses as RoleAnalysis[] || []);
         setProgress({ stage: "complete", message: "Analysis complete" });
         break;
 
@@ -280,6 +328,7 @@ export default function MaterialMapperPage() {
   const showEcosystemConnections = result?.ecosystem_connections || ecosystemConnections;
   const showEcosystemServices = result?.ecosystem_services || ecosystemServices;
   const showEcosystemServiceDetails = result?.ecosystem_service_details || ecosystemServiceDetails;
+  const showRoleAnalyses = result?.role_analyses || roleAnalyses;
 
   // Handle ecosystem service click
   const handleEcosystemServiceClick = useCallback((item: { id: string; label: string }) => {
@@ -448,7 +497,7 @@ export default function MaterialMapperPage() {
       {(showExtractedMaterials.length > 0 || showMatchedBmfs.length > 0) && (
         <div className="space-y-8">
           {/* Stats */}
-          <div className="flex gap-6 text-sm font-mono text-gray-500">
+          <div className="flex flex-wrap gap-6 text-sm font-mono text-gray-500">
             <span className="flex items-center gap-1">
               {progress.stage === "complete" && <CheckCircle2 size={14} className="text-green-600" />}
               {showExtractedMaterials.length} materials extracted
@@ -456,6 +505,9 @@ export default function MaterialMapperPage() {
             <span>{showMatchedBmfs.length} flows matched</span>
             {showEcosystemServices.length > 0 && (
               <span>{showEcosystemServices.length} ecosystem services</span>
+            )}
+            {showRoleAnalyses.length > 0 && (
+              <span>{showRoleAnalyses.length} roles</span>
             )}
             {result?.processing_time_ms && (
               <span>{(result.processing_time_ms / 1000).toFixed(1)}s</span>
@@ -719,6 +771,93 @@ export default function MaterialMapperPage() {
                 ))}
               </div>
             </section>
+          )}
+
+          {/* Building Roles - Show when available */}
+          {showRoleAnalyses.length > 0 && (
+            <section>
+              <h2 className="text-sm font-mono text-gray-400 uppercase tracking-wider mb-4">
+                Building Roles ({showRoleAnalyses.length})
+                {isLoading && progress.stage === "stage4" && (
+                  <span className="ml-2 text-blue-600 normal-case animate-pulse">Analyzing...</span>
+                )}
+              </h2>
+              <div className="grid gap-3">
+                {showRoleAnalyses.map((role, i) => (
+                  <div
+                    key={i}
+                    className="p-4 border border-gray-200 rounded-lg hover:border-purple-300 cursor-pointer transition-colors"
+                    onClick={() => setSelectedRole(role)}
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <h3 className="font-mono text-gray-800 font-medium">{role.role_name}</h3>
+                      <span className="text-xs font-mono text-purple-600 bg-purple-50 px-2 py-0.5 rounded">
+                        {role.materials_touched.length} materials
+                      </span>
+                    </div>
+                    <p className="text-sm font-mono text-gray-500 line-clamp-2">
+                      {role.description}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Modal Overlay for Role Details */}
+          {selectedRole && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
+              onClick={() => setSelectedRole(null)}
+            >
+              <div
+                className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[80vh] flex flex-col animate-fadeIn"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className="flex items-start justify-between p-4 border-b border-gray-200">
+                  <div>
+                    <h3 className="font-mono text-gray-800 font-medium text-lg">
+                      {selectedRole.role_name}
+                    </h3>
+                    <span className="text-xs font-mono text-purple-600 uppercase tracking-wider">
+                      Building Role
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setSelectedRole(null)}
+                    className="text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-100 transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+
+                {/* Scrollable Content */}
+                <div className="p-4 overflow-y-auto flex-1">
+                  <p className="text-sm font-mono text-gray-600 mb-4">
+                    {selectedRole.description}
+                  </p>
+
+                  {selectedRole.materials_touched.length > 0 && (
+                    <div className="border-t border-gray-200 pt-3">
+                      <h4 className="text-xs font-mono text-gray-400 uppercase tracking-wider mb-2">
+                        Materials Touched
+                      </h4>
+                      <div className="flex flex-wrap gap-1">
+                        {selectedRole.materials_touched.map((mat, i) => (
+                          <span
+                            key={i}
+                            className="text-xs font-mono text-purple-700 bg-purple-50 border border-purple-200 px-2 py-1 rounded"
+                          >
+                            {mat}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           )}
         </div>
       )}
