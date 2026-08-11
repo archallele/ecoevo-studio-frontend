@@ -1,0 +1,92 @@
+#!/bin/bash
+# Pre-commit hook for ecoevo-studio-frontend.
+#
+# Two gates:
+#   1. Reject any path under a package-manager install tree, INCLUDING renamed
+#      variants (e.g. .node_modules_store). This class of directory should never
+#      be committed — if it's being staged, an agent is either sweeping too
+#      broadly with `git add` or has renamed a canonical tool dir as a
+#      workaround for a failing test.
+#   2. Reject single files >10MB. GitHub's hard limit is 100MB, but anything
+#      over 10MB in this repo is almost certainly a build artifact, lockfile
+#      export, or binary blob that doesn't belong in git.
+#
+# Installation: run ./.githooks/install.sh once per clone/worktree.
+# Bypass (use sparingly): git commit --no-verify
+
+MAX_FILE_SIZE=$((10 * 1024 * 1024))  # 10 MB
+
+# Any path segment matching these is blocked:
+#   - [._]*node_modules[^/]*  catches node_modules/, .node_modules_store/,
+#                             _node_modules/, node_modules.bak/, etc.
+#   - .?venv                  catches venv/ and .venv/
+#   - __pycache__             Python bytecode
+#   - .pytest_cache, .mypy_cache, .ruff_cache
+#   - .next, .turbo, .vite, .pnpm  framework build/install caches
+TOOL_DIR_PATTERN='(^|/)([._]*node_modules[^/]*|\.?venv|__pycache__|\.(pytest_cache|mypy_cache|ruff_cache|next|turbo|vite|pnpm))(/|$)'
+
+blocked=()
+oversized=()
+
+while IFS= read -r file; do
+    [ -z "$file" ] && continue
+
+    # Gate 1: vendor-tree segment (match path using extended regex)
+    if [[ "$file" =~ $TOOL_DIR_PATTERN ]]; then
+        blocked+=("$file")
+        continue
+    fi
+
+    # Gate 2: oversized single file
+    if [ -f "$file" ]; then
+        size=$(wc -c < "$file" 2>/dev/null || echo 0)
+        if [ "$size" -gt "$MAX_FILE_SIZE" ]; then
+            oversized+=("$(( size / 1024 / 1024 ))MB  $file")
+        fi
+    fi
+done < <(git diff --cached --name-only --diff-filter=ACM)
+
+if [ ${#blocked[@]} -gt 0 ]; then
+    echo "ERROR: Attempted to stage files from a package-manager install tree."
+    echo ""
+    echo "First 20 offending paths:"
+    for f in "${blocked[@]:0:20}"; do
+        echo "  $f"
+    done
+    if [ ${#blocked[@]} -gt 20 ]; then
+        echo "  ... and $(( ${#blocked[@]} - 20 )) more"
+    fi
+    echo ""
+    echo "Total blocked paths: ${#blocked[@]}"
+    echo ""
+    echo "These directories are NEVER committed:"
+    echo "  node_modules/, venv/, __pycache__/, .next/, .pytest_cache/, etc."
+    echo ""
+    echo "If a canonical tool directory was RENAMED (e.g. .node_modules_store),"
+    echo "that is a signal an agent worked around a failing test_command."
+    echo "Restore the canonical name (mv .node_modules_store node_modules) and"
+    echo "fix the root-cause test instead."
+    echo ""
+    echo "To bypass (only if you fully understand what you're committing):"
+    echo "  git commit --no-verify"
+    exit 1
+fi
+
+if [ ${#oversized[@]} -gt 0 ]; then
+    echo "ERROR: Files larger than $(( MAX_FILE_SIZE / 1024 / 1024 ))MB staged for commit:"
+    echo ""
+    for entry in "${oversized[@]}"; do
+        echo "  $entry"
+    done
+    echo ""
+    echo "Files this large are almost always build artifacts, binary blobs, or"
+    echo "accidental commits. GitHub's hard file-size limit is 100MB. Options:"
+    echo "  - Add to .gitignore (if regenerable)"
+    echo "  - Move to Git LFS (if it's a legitimate large artifact)"
+    echo "  - Regenerate at build time instead of committing"
+    echo ""
+    echo "To bypass: git commit --no-verify"
+    exit 1
+fi
+
+exit 0
